@@ -16,6 +16,24 @@ Caveats:
 
 import sys, os, json, argparse, requests
 
+def is_safe_content(path):
+    # simple guard: only allow small files and printable chars
+    try:
+        st = os.stat(path)
+        if st.st_size == 0 or st.st_size > 20000:
+            return False, f"size={st.st_size} not allowed"
+        with open(path, "rb") as f:
+            data = f.read()
+        # require mostly printable ASCII (reject binary)
+        try:
+            txt = data.decode("utf-8")
+        except Exception:
+            return False, "not utf-8 text"
+
+        return True, txt
+    except Exception as e:
+        return False, f"error reading: {e}"
+
 def create_gist(token, filename, content, public=False, description="egress test"):
     url = "https://api.github.com/gists"
     headers = {
@@ -46,6 +64,11 @@ def main():
 
     if not os.path.isfile(args.file):
         print(f"ERROR: file not found: {args.file}")
+        sys.exit(1)
+
+    ok, result = is_safe_content(args.file)
+    if not ok:
+        print("Refusing to upload: safety check failed:", result)
         sys.exit(1)
 
     content = result
